@@ -125,6 +125,23 @@ describe("query_database tool", () => {
     ).toThrow("CLAW_INSTANCE_ID is required");
   });
 
+  test("buildQueryDatabaseRequest can skip claw instance filter when explicitly disabled", () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv("HOME", "/tmp/agentdatalake-channel-plugin-no-openclaw-env");
+
+    expect(
+      buildQueryDatabaseRequest({
+        DataPath: TEST_DATA_PATH,
+        Filter: "conversation_id = 321173761511424",
+        UseClawInstanceFilter: false,
+      }),
+    ).toEqual({
+      DataPath: TEST_DATA_PATH,
+      Filter: "conversation_id = 321173761511424",
+      Columns: ["content", "created_at", "speaker_id"],
+    });
+  });
+
   test("posts to ClawLake search endpoint and formats direct DataItems response", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(

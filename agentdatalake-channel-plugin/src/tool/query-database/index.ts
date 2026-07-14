@@ -26,6 +26,10 @@ export type QueryDatabaseRequest = {
   TopK?: number;
 };
 
+type QueryDatabaseParams = QueryDatabaseRequest & {
+  UseClawInstanceFilter?: boolean;
+};
+
 type QueryDatabaseDataItem = {
   ColumnName: string;
   ColumnValue: string;
@@ -109,6 +113,21 @@ function optionalTopK(params: JsonObject): number | undefined {
   return value;
 }
 
+function optionalBoolean(
+  params: JsonObject,
+  name: keyof QueryDatabaseParams,
+  defaultValue: boolean,
+): boolean {
+  const value = params[name];
+  if (value === undefined) {
+    return defaultValue;
+  }
+  if (typeof value !== "boolean") {
+    throw new Error(`${name} must be a boolean`);
+  }
+  return value;
+}
+
 function sqlStringLiteral(value: string): string {
   return value.replace(/'/g, "''");
 }
@@ -134,9 +153,18 @@ export function buildQueryDatabaseRequest(params: unknown): QueryDatabaseRequest
   const filter = optionalString(input, "Filter");
   const columns = optionalColumns(input);
   const topK = optionalTopK(input);
-  const clawInstanceId = readClawInstanceId();
-  if (!clawInstanceId) {
-    throw new Error("CLAW_INSTANCE_ID is required");
+  const useClawInstanceFilter = optionalBoolean(
+    input,
+    "UseClawInstanceFilter",
+    true,
+  );
+  let scopedFilter = filter;
+  if (useClawInstanceFilter) {
+    const clawInstanceId = readClawInstanceId();
+    if (!clawInstanceId) {
+      throw new Error("CLAW_INSTANCE_ID is required");
+    }
+    scopedFilter = mergeClawInstanceFilter(filter, clawInstanceId);
   }
   return compactObject({
     DataPath: dataPath,
@@ -147,7 +175,7 @@ export function buildQueryDatabaseRequest(params: unknown): QueryDatabaseRequest
     VectorColumn: query
       ? (optionalString(input, "VectorColumn") ?? DEFAULT_VECTOR_COLUMN)
       : optionalString(input, "VectorColumn"),
-    Filter: mergeClawInstanceFilter(filter, clawInstanceId),
+    Filter: scopedFilter,
     Columns: columns,
     TopK: topK,
   });
@@ -366,7 +394,13 @@ export const registerQueryDatabaseTool = (api: OpenClawPluginApi) => {
             Type.String({
               minLength: 1,
               description:
-                "Optional SQL-like filter condition, for example x = xx. The tool automatically adds the current claw_id scope.",
+                "Optional SQL-like filter condition, for example x = xx. By default the tool adds the current claw_id scope.",
+            }),
+          ),
+          UseClawInstanceFilter: Type.Optional(
+            Type.Boolean({
+              description:
+                "Whether to automatically add claw_id = current CLAW_INSTANCE_ID to Filter. Defaults to true. Set false only when the caller explicitly needs an unscoped query.",
             }),
           ),
           Columns: Type.Optional(
