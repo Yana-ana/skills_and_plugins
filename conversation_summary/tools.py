@@ -1,4 +1,4 @@
-"""
+﻿"""
 Helpers for the conversation-summary skill.
 
 The skill queries data through the plugin tool `query_database`. This module only
@@ -86,7 +86,13 @@ knowledge_graph 抽取规则：
 3. 不要输出 aliases 字段。
 4. node_subtype 暂不做强枚举，可以根据语义输出简短英文标签；不确定时使用 other。
 5. rel_type 必须是简短、事实型中文关系谓词，建议 2-6 个字；不要输出主观推断关系。
-6. 当 evidence.source_type 为 summary 时，source_ref 必须包含 conversation_id 和 date。
+6. 每一个 nodes 中的节点都必须至少有一条 evidence，且通过本次总结生成的节点 source_type 必须是 summary。
+7. 当 evidence.source_type 为 summary 时，source_ref 必须包含 conversation_id 和 date。
+8. edges.source_ref / edges.target_ref 只能引用已存在的 nodes.ref_id，例如 n1、n2；禁止填写实体名称、canonical_name 或普通文本。
+9. properties.owner_ref 只能引用已存在的 nodes.ref_id 或 edges.ref_id；evidence.target_ref 只能引用已存在的 nodes.ref_id 或 edges.ref_id。
+10. 如果边要指向的对象不在 nodes 中，必须先补节点；如果不值得建节点，就改为 property，不要生成这条边。
+11. 输出前必须自检所有 ref 引用都存在；找不到引用目标的 edge/property/evidence 必须删除或修正。
+12. 最终回复必须是严格合法 JSON。
 
 ---
 
@@ -269,3 +275,4 @@ def build_summary_input(
 
 
 get_summary_input_from_rows = build_summary_input
+
